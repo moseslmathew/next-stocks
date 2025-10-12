@@ -5,32 +5,13 @@ import { WatchlistTable } from "@/components/WatchlistTable";
 import type { WatchlistItemType } from "@/schemas/watchlistSchema";
 import { useUser } from "@clerk/nextjs";
 
-type WatchlistTableItem = {
-  id: string;
-  stock: {
-    symbol: string;
-    name: string;
-    currentPrice: number | null;
-  };
-  targetPrice: number | null;
-  notes?: string | null;
-};
-
 export default function Dashboard() {
-  const [watchlist, setWatchlist] = useState<WatchlistTableItem[]>([]);
+  const [watchlist, setWatchlist] = useState<WatchlistItemType[]>([]);
   const [loading, setLoading] = useState(false);
   const { user, isLoaded } = useUser();
 
   useEffect(() => {
-    async function fetchWatchlist() {
-      if (!isLoaded || !user) return;
-
-      const email = user.primaryEmailAddress?.emailAddress;
-      if (!email) {
-        console.error("❌ No email found for user");
-        return;
-      }
-
+    async function fetchWatchlist(email: string) {
       setLoading(true);
       try {
         const res = await fetch(
@@ -39,19 +20,7 @@ export default function Dashboard() {
         if (!res.ok) throw new Error("Failed to fetch watchlist");
 
         const data: WatchlistItemType[] = await res.json();
-
-        const mapped: WatchlistTableItem[] = data.map((item) => ({
-          id: item.id,
-          stock: {
-            symbol: item.stock?.symbol ?? "",
-            name: item.stock?.name ?? "",
-            currentPrice: item.stock?.currentPrice ?? null,
-          },
-          targetPrice: item.targetPrice ?? null,
-          notes: item.notes,
-        }));
-
-        setWatchlist(mapped);
+        setWatchlist(data);
       } catch (err) {
         console.error("❌ Error fetching watchlist:", err);
         setWatchlist([]);
@@ -60,30 +29,43 @@ export default function Dashboard() {
       }
     }
 
-    fetchWatchlist();
+    if (isLoaded && user?.primaryEmailAddress?.emailAddress) {
+      fetchWatchlist(user.primaryEmailAddress.emailAddress);
+    }
   }, [isLoaded, user]);
 
-  if (!isLoaded) return <div>Loading user...</div>;
-  if (!user) return <div>Could not load user info.</div>;
+  if (!isLoaded || !user) {
+    return (
+      <div className="flex justify-center items-center h-screen text-gray-500 text-lg">
+        Loading user...
+      </div>
+    );
+  }
 
   const email = user.primaryEmailAddress?.emailAddress ?? "";
-  const username = email.split("@")[0] || "there";
+  const username = email.split("@")[0];
 
   return (
-    <main className="mx-auto my-10 max-w-4xl space-y-8">
-      <h1 className="text-2xl font-semibold">Hi {username}</h1>
+    <main className="max-w-5xl mx-auto my-10 px-4 space-y-8">
+      {/* Header */}
+      <header className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-800">Hi {username} 👋</h1>
+        <p className="text-gray-500">Manage your watchlist</p>
+      </header>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <span className="ml-2">Loading...</span>
-        </div>
-      ) : (
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Watchlist</h2>
+      {/* Watchlist Section */}
+      <section className="bg-white shadow-md rounded-lg p-6">
+        <h2 className="text-2xl font-semibold mb-4 text-gray-700">Watchlist</h2>
+
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
+            <span className="ml-3 text-gray-600 text-lg">Loading...</span>
+          </div>
+        ) : (
           <WatchlistTable items={watchlist} userEmail={email} />
-        </section>
-      )}
+        )}
+      </section>
     </main>
   );
 }
