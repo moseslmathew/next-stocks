@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  Watchlist Watchlist[]
+}
+
+model Stock {
+  id            String    @id @default(uuid())
+  symbol        String    @unique
+  name          String
+  currentPrice  Decimal?  @db.Decimal(10, 2)
+  previousClose Decimal?  @db.Decimal(10, 2)
+  dayHigh       Decimal?  @db.Decimal(10, 2)
+  dayLow        Decimal?  @db.Decimal(10, 2)
+  volume        BigInt?
+  lastUpdated   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  watchlistItems Watchlist[]
+
+  @@index([symbol])
+}
+
+model Watchlist {
+  id          String   @id @default(uuid())
+  userId      String
+  stockId     String
+  targetPrice Decimal? @db.Decimal(10, 2)
+  notes       String?
+  addedAt     DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  // Ensure a user can't add the same stock twice
+  @@unique([userId, stockId])
+  @@index([userId])
+  @@index([stockId])
+}
