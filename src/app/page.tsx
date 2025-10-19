@@ -7,7 +7,7 @@ import { HeroSection } from "@/components/HeroSection";
 import DashboardPage from "./dashboard/page";
 
 export default function LoginPage() {
-  const { isSignedIn, user, isLoaded } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
   if (!isLoaded) return <div>Loading...</div>;
 
   return <main>{isSignedIn ? <DashboardPage /> : <HeroSection />}</main>;

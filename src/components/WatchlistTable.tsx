@@ -1,3 +1,4 @@
+// src/components/WatchlistTable.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,12 +11,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { WatchlistItemType } from "@/schemas/watchlistSchema";
+import StockNewsModal from "@/components/StockNewsModal";
+import { Edit, Trash2 } from "lucide-react";
 
 type Stock = {
   id: string;
   symbol: string;
   name: string;
+};
+
+type StockPrice = {
+  symbol: string;
   currentPrice: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  volume: number | null;
 };
 
 type Props = {
@@ -28,6 +38,10 @@ export function WatchlistTable({ items, userEmail }: Props) {
   const [adding, setAdding] = useState(false);
   const [addingLoading, setAddingLoading] = useState(false);
   const [stocks, setStocks] = useState<Stock[]>([]);
+  const [stockPrices, setStockPrices] = useState<Map<string, StockPrice>>(
+    new Map()
+  );
+  const [loadingPrices, setLoadingPrices] = useState<Set<string>>(new Set());
   const [newStock, setNewStock] = useState({
     stockId: "",
     targetPrice: "",
@@ -41,7 +55,10 @@ export function WatchlistTable({ items, userEmail }: Props) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Fetch all stocks for dropdown
+  const [selectedNewsSymbol, setSelectedNewsSymbol] = useState<string | null>(
+    null
+  );
+
   useEffect(() => {
     async function fetchStocks() {
       try {
@@ -49,7 +66,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
         if (!res.ok) throw new Error("Failed to fetch stocks");
         const data: Stock[] = await res.json();
 
-        // Filter out stocks already in watchlist
         const availableStocks = data.filter(
           (s) => !items.some((w) => w.stock?.id === s.id)
         );
@@ -62,7 +78,44 @@ export function WatchlistTable({ items, userEmail }: Props) {
     fetchStocks();
   }, [items]);
 
-  // Add new stock
+  useEffect(() => {
+    data.forEach((item) => {
+      if (item.stock?.symbol && !stockPrices.has(item.stock.symbol)) {
+        fetchStockPrice(item.stock.symbol);
+      }
+    });
+  }, [data, stockPrices]);
+
+  async function fetchStockPrice(symbol: string) {
+    setLoadingPrices((prev) => new Set(prev).add(symbol));
+    try {
+      const res = await fetch(
+        `/api/stocks/price?symbol=${encodeURIComponent(symbol)}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch price");
+      const priceData: StockPrice = await res.json();
+      setStockPrices((prev) => new Map(prev).set(symbol, priceData));
+      console.log(`✅ Fetched price for ${symbol}:`, priceData.currentPrice);
+    } catch (err) {
+      console.error(`❌ Error fetching price for ${symbol}:`, err);
+      setStockPrices((prev) =>
+        new Map(prev).set(symbol, {
+          symbol,
+          currentPrice: null,
+          dayHigh: null,
+          dayLow: null,
+          volume: null,
+        })
+      );
+    } finally {
+      setLoadingPrices((prev) => {
+        const updated = new Set(prev);
+        updated.delete(symbol);
+        return updated;
+      });
+    }
+  }
+
   async function handleAdd() {
     if (!userEmail || !newStock.stockId) return;
     setAddingLoading(true);
@@ -75,7 +128,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
         email: userEmail,
         symbol: selectedStock.symbol,
         name: selectedStock.name,
-        currentPrice: selectedStock.currentPrice ?? null,
         targetPrice: newStock.targetPrice || null,
         notes: newStock.notes || null,
       };
@@ -86,11 +138,7 @@ export function WatchlistTable({ items, userEmail }: Props) {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("Failed to add item:", text);
-        throw new Error("Failed to add item");
-      }
+      if (!res.ok) throw new Error("Failed to add item");
 
       const added = await res.json();
       setData((prev) => [added, ...prev]);
@@ -104,7 +152,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
     }
   }
 
-  // Edit functions
   function startEdit(item: WatchlistItemType) {
     setEditingId(item.id);
     setEditStock({
@@ -136,7 +183,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
     }
   }
 
-  // Delete function
   async function handleDelete(id: string) {
     setDeleteLoading(true);
     try {
@@ -154,7 +200,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header with Add Button */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">My Watchlist</h2>
@@ -172,7 +217,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
         )}
       </div>
 
-      {/* Add Stock Form */}
       {adding && (
         <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-6 space-y-4 shadow-lg">
           <h3 className="font-semibold text-gray-900 text-lg">Add New Stock</h3>
@@ -253,7 +297,6 @@ export function WatchlistTable({ items, userEmail }: Props) {
         </div>
       )}
 
-      {/* Table */}
       <Table className="rounded-lg overflow-hidden shadow-sm">
         <TableHeader className="bg-gray-50">
           <TableRow>
@@ -270,93 +313,117 @@ export function WatchlistTable({ items, userEmail }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((item) => (
-            <TableRow
-              key={item.id}
-              className="hover:bg-gray-50 transition-colors"
-            >
-              <TableCell>{item.stock?.symbol ?? "—"}</TableCell>
-              <TableCell>{item.stock?.name ?? "—"}</TableCell>
-              <TableCell>{item.stock?.currentPrice ?? "—"}</TableCell>
-              <TableCell>
-                {editingId === item.id ? (
-                  <input
-                    type="number"
-                    className="border px-2 py-1 rounded w-24"
-                    value={editStock.targetPrice}
-                    onChange={(e) =>
-                      setEditStock((prev) => ({
-                        ...prev,
-                        targetPrice: e.target.value,
-                      }))
-                    }
-                  />
-                ) : (
-                  item.targetPrice ?? "—"
-                )}
-              </TableCell>
-              <TableCell>
-                {editingId === item.id ? (
-                  <input
-                    type="text"
-                    className="border px-2 py-1 rounded w-36"
-                    value={editStock.notes}
-                    onChange={(e) =>
-                      setEditStock((prev) => ({
-                        ...prev,
-                        notes: e.target.value,
-                      }))
-                    }
-                  />
-                ) : (
-                  item.notes ?? "—"
-                )}
-              </TableCell>
-              <TableCell className="flex gap-2">
-                {editingId === item.id ? (
-                  <>
-                    <button
-                      onClick={() => handleSaveEdit(item.id)}
-                      className="bg-green-600 text-white px-3 py-1 rounded-lg flex items-center gap-2 disabled:opacity-60"
-                      disabled={editingLoading}
-                    >
-                      {editingLoading && (
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
-                      )}
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="bg-gray-300 px-3 py-1 rounded-lg"
-                      disabled={editingLoading}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => startEdit(item)}
-                      className="bg-yellow-400 px-3 py-1 rounded-lg"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteId(item.id)}
-                      className="bg-red-600 text-white px-3 py-1 rounded-lg"
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
+          {data.map((item) => {
+            const price = stockPrices.get(item.stock?.symbol ?? "");
+            const isLoadingPrice = loadingPrices.has(item.stock?.symbol ?? "");
+
+            return (
+              <TableRow
+                key={item.id}
+                className="hover:bg-gray-50 transition-colors"
+              >
+                <TableCell className="font-semibold">
+                  {item.stock?.symbol ?? "—"}
+                </TableCell>
+                <TableCell>{item.stock?.name ?? "—"}</TableCell>
+                <TableCell>
+                  {isLoadingPrice ? (
+                    <span className="text-xs text-gray-400">Loading...</span>
+                  ) : price?.currentPrice ? (
+                    `${Number(price.currentPrice).toFixed(2)}`
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingId === item.id ? (
+                    <input
+                      type="number"
+                      className="border px-2 py-1 rounded w-24"
+                      value={editStock.targetPrice}
+                      onChange={(e) =>
+                        setEditStock((prev) => ({
+                          ...prev,
+                          targetPrice: e.target.value,
+                        }))
+                      }
+                    />
+                  ) : item.targetPrice ? (
+                    `${Number(item.targetPrice).toFixed(2)}`
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingId === item.id ? (
+                    <input
+                      type="text"
+                      className="border px-2 py-1 rounded w-36"
+                      value={editStock.notes}
+                      onChange={(e) =>
+                        setEditStock((prev) => ({
+                          ...prev,
+                          notes: e.target.value,
+                        }))
+                      }
+                    />
+                  ) : (
+                    String(item.notes ?? "—")
+                  )}
+                </TableCell>
+                <TableCell className="flex flex-wrap gap-1">
+                  {editingId === item.id ? (
+                    <>
+                      <button
+                        onClick={() => handleSaveEdit(item.id)}
+                        className="bg-green-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1 disabled:opacity-60 whitespace-nowrap"
+                        disabled={editingLoading}
+                      >
+                        {editingLoading && (
+                          <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-white"></div>
+                        )}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="bg-gray-300 px-2 py-1 rounded text-xs whitespace-nowrap"
+                        disabled={editingLoading}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() =>
+                          setSelectedNewsSymbol(item.stock?.symbol ?? null)
+                        }
+                        className="bg-purple-400 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                      >
+                        News
+                      </button>
+                      <button
+                        onClick={() => startEdit(item)}
+                        className="bg-yellow-400 px-2 py-1 rounded text-xs whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => setConfirmDeleteId(item.id)}
+                        className="bg-red-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 
-      {/* Delete Confirmation */}
-      {/* Delete Confirmation */}
       {confirmDeleteId && (
         <div className="fixed top-1/4 left-1/2 -translate-x-1/2 bg-white p-6 rounded-lg shadow-lg space-y-4 w-80 z-50 border border-gray-200">
           <h2 className="text-lg font-semibold">Confirm Delete</h2>
@@ -382,6 +449,11 @@ export function WatchlistTable({ items, userEmail }: Props) {
           </div>
         </div>
       )}
+
+      <StockNewsModal
+        symbol={selectedNewsSymbol}
+        onClose={() => setSelectedNewsSymbol(null)}
+      />
     </div>
   );
 }

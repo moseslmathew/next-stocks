@@ -1,11 +1,9 @@
-// src/app/api/watchlist/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserByEmail } from "@/lib/queries/users";
 import { getUserWatchlist } from "@/lib/queries/watchlist";
 import { watchlistSchema } from "@/schemas/watchlistSchema";
 
-// Fetch user's watchlist by email
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -34,12 +32,10 @@ export async function GET(req: Request) {
   }
 }
 
-// Add a new stock to user's watchlist by email
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, stockId, symbol, name, currentPrice, targetPrice, notes } =
-      body;
+    const { email, stockId, symbol, name, targetPrice, notes } = body;
 
     if (!email || (!stockId && (!symbol || !name))) {
       return NextResponse.json(
@@ -48,7 +44,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find user by email
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -57,23 +52,19 @@ export async function POST(req: Request) {
     let stockRecord;
 
     if (stockId) {
-      // Use existing stock
       stockRecord = await prisma.stock.findUnique({ where: { id: stockId } });
       if (!stockRecord) {
         return NextResponse.json({ error: "Stock not found" }, { status: 404 });
       }
     } else {
-      // Check if stock with symbol already exists
       stockRecord = await prisma.stock.findUnique({ where: { symbol } });
       if (!stockRecord) {
-        // Create new stock
         stockRecord = await prisma.stock.create({
-          data: { symbol, name, currentPrice: currentPrice ?? null },
+          data: { symbol, name },
         });
       }
     }
 
-    // Add to watchlist
     const newItem = await prisma.watchlist.create({
       data: {
         userId: user.id,

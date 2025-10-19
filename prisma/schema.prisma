@@ -20,17 +20,12 @@ model User {
 }
 
 model Stock {
-  id            String    @id @default(uuid())
-  symbol        String    @unique
-  name          String
-  currentPrice  Decimal?  @db.Decimal(10, 2)
-  previousClose Decimal?  @db.Decimal(10, 2)
-  dayHigh       Decimal?  @db.Decimal(10, 2)
-  dayLow        Decimal?  @db.Decimal(10, 2)
-  volume        BigInt?
-  lastUpdated   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String    @id @default(uuid())
+  symbol      String    @unique
+  name        String
+  lastUpdated DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
   watchlistItems Watchlist[]

@@ -12,11 +12,6 @@ export async function GET() {
     const serialized = stocks.map((stock) => ({
       ...stock,
       id: stock.id.toString(),
-      currentPrice: stock.currentPrice ?? null,
-      previousClose: stock.previousClose ?? null,
-      dayHigh: stock.dayHigh ?? null,
-      dayLow: stock.dayLow ?? null,
-      volume: stock.volume ? stock.volume.toString() : null, // convert BigInt to string
       lastUpdated: stock.lastUpdated?.toISOString() ?? null,
       createdAt: stock.createdAt?.toISOString() ?? null,
       updatedAt: stock.updatedAt?.toISOString() ?? null,

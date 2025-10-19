@@ -1,5 +1,4 @@
 //src/components/WatchlistList.tsx
-
 "use client";
 
 import type { WatchlistItemType } from "@/schemas/watchlistSchema";
