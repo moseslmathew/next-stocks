@@ -5,9 +5,9 @@ import { watchlistSchema } from "@/schemas/watchlistSchema";
 // Update existing watchlist item
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
   const body = await req.json();
   const { targetPrice, notes } = body;
 
@@ -31,9 +31,9 @@ export async function PATCH(
 // Delete watchlist item
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const item = await prisma.watchlist.findUnique({ where: { id } });
